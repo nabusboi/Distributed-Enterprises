@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat Room and Drawing App</title>
+    <style>
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: row;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+      canvas {
+        border: 1px solid black;
+        flex-grow: 1;
+        display: block;
+      }
+      #chat {
+        width: 300px;
+        background: #f1f1f1;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #ccc;
+      }
+      #messages {
+        flex-grow: 1;
+        list-style-type: none;
+        margin: 0;
+        padding: 10px;
+        overflow-y: auto;
+      }
+      #messages li {
+        padding: 5px 10px;
+        border-bottom: 1px solid #ddd;
+      }
+      #form {
+        display: flex;
+        border-top: 1px solid #ccc;
+      }
+      #input {
+        flex-grow: 1;
+        border: none;
+        padding: 10px;
+        outline: none;
+      }
+      button {
+        padding: 10px;
+        border: none;
+        background: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Canvas for Drawing -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Chat Sidebar -->
+    <div id="chat">
+      <ul id="messages"></ul>
+      <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="Type a message..." />
+        <button>Send</button>
+      </form>
+    </div>
+
+    <!-- Socket.io Client Script -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      // Initialize Socket.io
+      const socket = io();
+
+      // Canvas Setup
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = window.innerWidth - 300; // Deduct chat width
+      canvas.height = window.innerHeight;
+
+      let drawing = false;
+
+      // Start Drawing
+      canvas.addEventListener("mousedown", () => {
+        drawing = true;
+      });
+
+      // Stop Drawing
+      canvas.addEventListener("mouseup", () => {
+        drawing = false;
+        ctx.beginPath();
+      });
+
+      // Handle Mouse Movement
+      canvas.addEventListener("mousemove", (event) => {
+        if (!drawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "black";
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+
+        // Emit Drawing Data
+        socket.emit("drawing", { x, y });
+      });
+
+      // Listen for Drawing Events from Other Users
+      socket.on("drawing", (data) => {
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "black";
+        ctx.lineTo(data.x, data.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(data.x, data.y);
+      });
+
+      // Chat Functionality
+      const messages = document.getElementById("messages");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (input.value) {
+          socket.emit("chat message", input.value); // Send message to server
+          input.value = "";
+        }
+      });
+
+      // Listen for Chat Messages
+      socket.on("chat message", (msg) => {
+        const item = document.createElement("li");
+        item.textContent = msg;
+        messages.appendChild(item);
+        messages.scrollTop = messages.scrollHeight; // Scroll to bottom
+      });
+    </script>
+  </body>
+</html>
